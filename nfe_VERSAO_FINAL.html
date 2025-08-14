@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NF-e Didática — Gerador de XML + DANFE (refatorado)</title>
+<style>
+  :root{
+    --bg:#f5f7fb; --card:#fff; --muted:#6b7280; --ink:#111827; --accent:#2563eb;
+    --br:14px; --grid:#111; --sub:#fafafa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Arial;color:var(--ink)}
+  .wrap{max-width:1200px;margin:20px auto;padding:0 12px 72px}
+  h1{font-size:20px;margin:0 0 10px}
+  h3{margin:0 0 8px}
+  .card{background:var(--card);border:1px solid #e5e7eb;border-radius:var(--br);padding:16px;box-shadow:0 4px 14px rgba(0,0,0,.04);margin:12px 0}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .f{display:flex;flex-direction:column;gap:6px}
+  label{font-size:12px;color:var(--muted)}
+  input,select,textarea{padding:9px 10px;border:1px solid #d1d5db;border-radius:10px;font-size:14px;width:100%;background:#fff}
+  input[type=file]{padding:6px}
+  textarea{min-height:70px;resize:vertical}
+  .btn{background:var(--accent);border:none;color:#fff;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:600}
+  .btn.secondary{background:#1118270d;color:#111827;border:1px solid #e5e7eb}
+  .btn.warn{background:#b45309}
+  .btn:disabled{opacity:.55;cursor:not-allowed}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .muted{color:var(--muted)}
+  table{width:100%;border-collapse:collapse}
+  th,td{border:1px solid #e5e7eb;padding:8px;font-size:13px}
+  th{background:#f9fafb;text-align:left}
+  tfoot td{font-weight:700}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .right{justify-self:end}
+  .pill{background:#eef2ff;color:#3730a3;border-radius:999px;padding:4px 8px;font-size:12px}
+  .danger{color:#b91c1c}
+  .success{color:#065f46}
+  .grid-2{grid-column:span 2} .grid-3{grid-column:span 3} .grid-4{grid-column:span 4}
+  .grid-5{grid-column:span 5} .grid-6{grid-column:span 6} .grid-7{grid-column:span 7} .grid-12{grid-column:span 12}
+  @media (max-width:980px){
+    .row{grid-template-columns:repeat(6,1fr)}
+    .grid-7,.grid-6,.grid-5,.grid-4,.grid-3,.grid-2{grid-column:span 6}
+  }
+  /* Tabs */
+  .tabs{display:flex;gap:8px;margin-bottom:10px}
+  .tab{padding:8px 12px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;cursor:pointer}
+  .tab.active{background:#e8efff;border-color:#c7d2fe}
+  /* Página A4 DANFE */
+  .a4{width: 205mm; min-height: 294mm; margin: 0 auto; background:#fff; box-shadow:0 8px 24px rgba(0,0,0,.12); padding:7mm}
+  .danfe{font-size:11px; color:#111; font-family: Arial, Helvetica, sans-serif;}
+  .grid{border:1px solid var(--grid)}
+  .rowg{display:flex;border-bottom:1px solid var(--grid)}
+  .cell{border-right:1px solid var(--grid); padding:4px 6px}
+  .cell:last-child{border-right:none}
+  .hdr{display:grid; grid-template-columns: 1.4fr 1fr 1.4fr; grid-auto-rows:auto; border:1px solid var(--grid); margin-bottom:6px}
+  .emit{grid-column:1/2; grid-row:1/3; border-right:1px solid var(--grid); padding:6px}
+  .emit .fant{font-size:16px; font-weight:800}
+  .emit .razao{font-size:13px}
+  .emit .end{font-size:11px; line-height:1.25}
+  .emit .doc{font-size:11px; margin-top:4px}
+  .danfeTitle{grid-column:2/3; grid-row:1/2; border-bottom:1px solid var(--grid); text-align:center; padding:6px}
+  .nfeBox{grid-column:2/3; grid-row:2/3; padding:6px}
+  .chaveBox{grid-column:3/4; grid-row:1/3; padding:6px; border-left:1px solid var(--grid)}
+  .barcode{width:100%; height:58px}
+  .digits{font-weight:700; text-align:center; letter-spacing:.04em; margin-top:4px}
+  .secHdr{border:1px solid var(--grid); margin-top:6px}
+  .secHdr .title{background:var(--sub); font-weight:700; padding:4px 6px}
+  .f .lbl{font-size:10px; color:#444}
+  .f .val{font-weight:600; font-size:12px}
+  table.prod{width:100%; border-collapse:collapse; font-size:11px}
+  table.prod th, table.prod td{border:1px solid var(--grid); padding:3px 4px}
+  table.prod thead th{background:var(--sub)}
+  .nowrap{white-space:nowrap}
+  .canhoto{border:1px dashed var(--grid); margin-bottom:6px; padding:6px}
+  .canhoto h4{margin:0 0 6px; font-size:12px}
+  .logo{height:36px; object-fit:contain}
+  .err{border-color:#ef4444 !important; box-shadow:0 0 0 2px rgba(239,68,68,.15)}
+  @media print{
+    body{background:#fff}
+    /* Esconde a UI, mas mantém o VISUALIZADOR (DANFE) visível na impressão */
+    .tabs, #editor, .toolbar{display:none!important}
+    #viewer{display:block!important; border:none; box-shadow:none; padding:0}
+    .wrap{max-width:none; padding:0; margin:0}
+    .a4{box-shadow:none; width:190mm; padding:6mm}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>NF-e Didática — <span class="pill">Gerador de XML + DANFE</span></h1>
+  <div class="tabs">
+    <button class="tab active" data-tab="editor">Preencher &amp; Gerar XML</button>
+    <button class="tab" data-tab="viewer">Visualizar DANFE</button>
+  </div>
+
+  <!-- ========================== EDITOR ========================== -->
+  <section id="editor" class="card">
+    <h3>Configurações</h3>
+    <div class="row">
+      <div class="f grid-2">
+        <label>UF do Emitente</label>
+        <select id="uf">
+          <option>SP</option><option>RJ</option><option>MG</option><option>ES</option>
+          <option>PR</option><option>RS</option><option>SC</option><option>BA</option>
+          <option>GO</option><option>DF</option><option>AM</option><option>PA</option>
+          <option>CE</option><option>PE</option><option>RN</option><option>PB</option>
+          <option>SE</option><option>AL</option><option>TO</option><option>MA</option>
+          <option>PI</option><option>RO</option><option>RR</option><option>AP</option>
+          <option>MT</option><option>MS</option>
+        </select>
+      </div>
+      <div class="f grid-4"><label>Natureza da Operação</label><input id="natOp" value="Venda de mercadorias"></div>
+      <div class="f grid-2"><label>Série</label><input id="serie" value="1"></div>
+      <div class="f grid-2"><label>Número</label><input id="nNF" value="1001"></div>
+      <div class="f grid-2"><label>Emissão</label><input id="dhEmi" type="datetime-local"></div>
+      <div class="f grid-2">
+        <label>Tipo</label>
+        <select id="tpNF"><option value="1" selected>Saída</option><option value="0">Entrada</option></select>
+      </div>
+      <div class="f grid-2"><label>Alíquota padrão ICMS (%)</label><input id="pICMS" value="18"></div>
+      <div class="f grid-2"><label>Alíquota padrão FCP (%)</label><input id="pFCP" value="0"></div>
+      <div class="f grid-2"><label>CFOP padrão</label><input id="cfopPadrao" value="1101"></div>
+      <div class="f grid-2"><label>Frete (R$)</label><input id="vFrete" value="0"></div>
+      <div class="f grid-2"><label>Seguro (R$)</label><input id="vSeg" value="0"></div>
+      <div class="f grid-2"><label>Desconto (R$)</label><input id="vDesc" value="0"></div>
+      <div class="f grid-2"><label>Outras despesas (R$)</label><input id="vOutro" value="0"></div>
+      <div class="f grid-2">
+        <label>Frete (modFrete)</label>
+        <select id="modFrete">
+          <option value="9" selected>9 - Sem frete</option>
+          <option value="0">0 - Emitente</option>
+          <option value="1">1 - Destinatário</option>
+          <option value="2">2 - Terceiros</option>
+        </select>
+      </div>
+    </div>
+
+    <h3>Emitente</h3>
+    <div class="row" id="emitForm">
+      <div class="f grid-6"><label>Razão social</label><input id="emit_xNome" value="AROMAS &amp; ESSENCIAS"></div>
+      <div class="f grid-6"><label>Nome fantasia</label><input id="emit_xFant" value="AROMAS &amp; ESSENCIAS"></div>
+      <div class="f grid-3"><label>CNPJ (14 dígitos)</label><input id="emit_CNPJ" data-mask="cnpj" value="40.987.654/0001-22"></div>
+      <div class="f grid-3"><label>IE</label><input id="emit_IE" value="123456789112"></div>
+      <div class="f grid-4"><label>Logradouro</label><input id="emit_xLgr" value="Rua Saturno"></div>
+      <div class="f grid-2"><label>Número</label><input id="emit_nro" value="100"></div>
+      <div class="f grid-4"><label>Bairro</label><input id="emit_xBairro" value="Cidade Industrial (Satélite)"></div>
+      <div class="f grid-3"><label>Município</label><input id="emit_xMun" value="Guarulhos"></div>
+      <div class="f grid-1"><label>UF</label><input id="emit_UF" value="SP"></div>
+      <div class="f grid-3"><label>CEP</label><input id="emit_CEP" data-mask="cep" value="07112-000"></div>
+    </div>
+
+    <h3>Destinatário</h3>
+    <div class="row" id="destForm">
+      <div class="f grid-6"><label>Nome / Razão social</label><input id="dest_xNome" value="Siene Cosmetic's"></div>
+      <div class="f grid-3"><label>CNPJ/CPF</label><input id="dest_doc" data-mask="cnpjcpf" value="52.999.888/0001-66"></div>
+      <div class="f grid-3"><label>IE</label><input id="dest_IE" value="114477889900"></div>
+      <div class="f grid-4"><label>Logradouro</label><input id="dest_xLgr" value="Avenida Monteiro Lobato"></div>
+      <div class="f grid-2"><label>Número</label><input id="dest_nro" value="131"></div>
+      <div class="f grid-3"><label>Bairro</label><input id="dest_xBairro" value="Centro"></div>
+      <div class="f grid-2"><label>Município</label><input id="dest_xMun" value="Guarulhos"></div>
+      <div class="f grid-1"><label>UF</label><input id="dest_UF" value="SP"></div>
+      <div class="f grid-3"><label>CEP</label><input id="dest_CEP" data-mask="cep" value="07112-000"></div>
+    </div>
+
+    <h3>Produtos</h3>
+    <div class="toolbar" style="margin-bottom:8px">
+      <button class="btn" id="addItem">+ Adicionar item</button>
+      <button class="btn secondary" id="clearItens">Limpar itens</button>
+      <span class="muted">Campos por item: Código, Descrição, NCM, CFOP (padrão 1101), UN, Qtde, V. Unit, IPI%, PIS%, COFINS%, FCP%.</span>
+    </div>
+    <div style="overflow:auto">
+      <table id="tblItens">
+        <thead>
+          <tr>
+            <th>#</th><th>Código</th><th>Descrição</th><th>NCM</th><th>CFOP</th><th>UN</th>
+            <th class="num">Qtde</th><th class="num">V. Unit</th><th class="num">IPI %</th><th class="num">PIS %</th><th class="num">COFINS %</th><th class="num">FCP %</th>
+            <th class="num">V. Total</th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr><td colspan="12" class="right">Total dos produtos</td><td class="num" id="sumVProd">0,00</td><td></td></tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <h3>Informações Complementares</h3>
+    <textarea id="infCpl">Documento didático para geração e visualização de NF-e/DANFE. Dados fictícios.</textarea>
+
+    <div class="toolbar" style="margin-top:10px">
+      <button class="btn" id="btnGerar">Gerar XML (baixar)</button>
+      <button class="btn secondary" id="btnGerarVisualizar">Gerar &amp; Visualizar</button>
+      <button class="btn secondary" id="btnSalvar">Salvar rascunho</button>
+      <button class="btn secondary" id="btnCarregar">Carregar rascunho</button>
+      <button class="btn warn" id="btnLimpar">Limpar rascunho</button>
+      <button class="btn secondary" id="btnReabrirXML">Reabrir último XML</button>
+      <button class="btn secondary" id="btnCopiarXML">Copiar XML</button>
+      <span id="msg" class="muted"></span>
+    </div>
+  </section>
+
+  <!-- ========================== VIEWER ========================== -->
+  <section id="viewer" class="card" style="display:none">
+    <div class="toolbar">
+      <label class="btn secondary">
+        <input id="xmlFile" type="file" accept=".xml" style="display:none"> Importar XML…
+      </label>
+      <label class="btn secondary">
+        <input id="logoFile" type="file" accept="image/*" style="display:none"> Logo do emitente…
+      </label>
+      <button class="btn secondary" onclick="window.print()">Imprimir</button>
+      <span class="muted">Inclui <b>canhoto</b> e <b>logo</b> (opcional).</span>
+    </div>
+    <div id="danfePage" class="a4">
+      <div class="danfe" id="danfePlaceholder">
+        <p class="muted">Carregue um XML (ou clique em <b>Gerar &amp; Visualizar</b> no editor).</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+// ========================= Constantes e utilidades =========================
+const LS_FORM_KEY = 'NFE_FORM_v1';
+const LS_XML_KEY  = 'NFE_LAST_XML_v1';
+
+const UF2cUF = { AC:12, AL:27, AP:16, AM:13, BA:29, CE:23, DF:53, ES:32, GO:52, MA:21, MT:51, MS:50, MG:31, PA:15, PB:25, PR:41, PE:26, PI:22, RJ:33, RN:24, RS:43, RO:11, RR:14, SC:42, SP:35, SE:28, TO:17 };
+const tbody = document.querySelector('#tblItens tbody');
+const sumVProd = document.getElementById('sumVProd');
+const msg = document.getElementById('msg');
+document.getElementById('dhEmi').value = new Date().toISOString().slice(0,16);
+
+function toNum(s){ if(s==null||s==='') return 0; return Number(String(s).replace(/\./g,'').replace(',','.')); }
+function toMoney(n){ return Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function toDec2(n){ return (Math.round((Number(n)||0)*100)/100).toFixed(2); }
+function toDec4(n){ return (Math.round((Number(n)||0)*10000)/10000).toFixed(4); }
+function onlyDigits(s){ return String(s||'').replace(/\D/g,''); }
+function pad(n, len){ n=String(n); while(n.length<len) n='0'+n; return n; }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ========================= Máscaras e validação =========================
+// Máscaras simples para CNPJ/CPF/CEP (sem validação de DV)
+function formatCNPJ(d){ d=onlyDigits(d).slice(0,14); return d.replace(/(\d{2})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1/$2').replace(/(\d{4})(\d)/,'$1-$2'); }
+function formatCPF(d){ d=onlyDigits(d).slice(0,11); return d.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2'); }
+function formatCNPJCPF(d){ const x=onlyDigits(d); return x.length>11?formatCNPJ(x):formatCPF(x); }
+function formatCEP(d){ d=onlyDigits(d).slice(0,8); return d.replace(/(\d{5})(\d{1,3})$/,'$1-$2'); }
+
+function attachMasks(){
+  document.querySelectorAll('[data-mask]').forEach(inp=>{
+    const t = inp.getAttribute('data-mask');
+    inp.addEventListener('input', ()=>{
+      const caret = inp.selectionStart;
+      let v = inp.value;
+      if(t==='cnpj') v = formatCNPJ(v);
+      else if(t==='cpf') v = formatCPF(v);
+      else if(t==='cnpjcpf') v = formatCNPJCPF(v);
+      else if(t==='cep') v = formatCEP(v);
+      inp.value = v;
+      try{ inp.setSelectionRange(caret, caret); }catch(_){}
+    });
+  });
+}
+
+function markError(inp, on){
+  if(!inp) return;
+  inp.classList.toggle('err', !!on);
+}
+function validateForm(){
+  let ok = true; msg.textContent='';
+  // Emitente CNPJ
+  const emitCNPJ = document.getElementById('emit_CNPJ');
+  if(onlyDigits(emitCNPJ.value).length !== 14){ markError(emitCNPJ, true); ok=false; } else markError(emitCNPJ,false);
+  // Dest doc (CNPJ/CPF)
+  const dd = document.getElementById('dest_doc');
+  const dlen = onlyDigits(dd.value).length;
+  if(dlen!==11 && dlen!==14){ markError(dd,true); ok=false; } else markError(dd,false);
+  // CEPs
+  const cepE = document.getElementById('emit_CEP');
+  const cepD = document.getElementById('dest_CEP');
+  if(onlyDigits(cepE.value).length!==8){ markError(cepE,true); ok=false; } else markError(cepE,false);
+  if(onlyDigits(cepD.value).length!==8){ markError(cepD,true); ok=false; } else markError(cepD,false);
+  // Itens
+  if(tbody.children.length===0){ ok=false; }
+  // Sinaliza
+  if(!ok) msg.innerHTML = '<span class="danger">Revise os campos em vermelho e inclua ao menos 1 item.</span>';
+  return ok;
+}
+
+// ========================= Itens (dinâmico) =========================
+function addItemRow(data={}) {
+  const i = tbody.children.length+1;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="num idx">${i}</td>
+    <td><input value="${data.cProd||''}" placeholder="cProd"></td>
+    <td><input size="28" value="${data.xProd||''}" placeholder="Descrição"></td>
+    <td><input value="${data.NCM||''}" placeholder="NCM"></td>
+    <td><input value="${data.CFOP||document.getElementById('cfopPadrao').value}" placeholder="CFOP"></td>
+    <td><input value="${data.uCom||'UN'}" style="width:70px" placeholder="UN"></td>
+    <td class="num"><input value="${data.qCom||''}" placeholder="Qtde" style="width:110px"></td>
+    <td class="num"><input value="${data.vUnCom||''}" placeholder="V. Unit" style="width:110px"></td>
+    <td class="num"><input value="${data.pIPI||'0'}" placeholder="IPI%" style="width:90px"></td>
+    <td class="num"><input value="${data.pPIS||'0'}" placeholder="PIS%" style="width:90px"></td>
+    <td class="num"><input value="${data.pCOFINS||'0'}" placeholder="COFINS%" style="width:90px"></td>
+    <td class="num"><input value="${data.pFCP||document.getElementById('pFCP').value||'0'}" placeholder="FCP%" style="width:90px"></td>
+    <td class="num vProd">0,00</td>
+    <td><button class="btn secondary del">Remover</button></td>
+  `;
+  tbody.appendChild(tr);
+  const inputs = tr.querySelectorAll('input');
+  inputs.forEach(inp=> inp.addEventListener('input', ()=>{ recalc(); scheduleAutoSave(); }));
+  tr.querySelector('.del').addEventListener('click', ()=>{ tr.remove(); renumber(); recalc(); scheduleAutoSave(); });
+  recalc();
+}
+function renumber(){ Array.from(tbody.children).forEach((tr,i)=> tr.querySelector('.idx').textContent = i+1); }
+function recalc(){
+  let sum = 0;
+  Array.from(tbody.children).forEach(tr=>{
+    const q = toNum(tr.children[6].querySelector('input').value);
+    const u = toNum(tr.children[7].querySelector('input').value);
+    const v = q*u;
+    tr.querySelector('.vProd').textContent = toMoney(v);
+    sum += v;
+  });
+  sumVProd.textContent = toMoney(sum);
+}
+document.getElementById('addItem').addEventListener('click', ()=> { addItemRow(); scheduleAutoSave(); });
+document.getElementById('clearItens').addEventListener('click', ()=>{ tbody.innerHTML=''; recalc(); scheduleAutoSave(); });
+
+// Pré-preenche 2 itens exemplo
+addItemRow({cProd:'P001', xProd:'Extrato Natural de Aloe Vera', NCM:'13021990', CFOP:'1101', uCom:'L', qCom:'30', vUnCom:'22', pIPI:'0', pPIS:'1.65', pCOFINS:'7.60', pFCP:'0'});
+addItemRow({cProd:'P002', xProd:'Óleo de Coco Orgânico', NCM:'15131900', CFOP:'1101', uCom:'L', qCom:'5', vUnCom:'24', pIPI:'0', pPIS:'1.65', pCOFINS:'7.60', pFCP:'0'});
+
+// ========================= Chave de acesso =========================
+function dvMod11Chave(s43){
+  const arr = s43.split('').map(d=>parseInt(d,10));
+  let peso = 2, soma = 0;
+  for(let i=arr.length-1;i>=0;i--){
+    soma += arr[i]*peso;
+    peso++; if(peso>9) peso=2;
+  }
+  const mod = soma % 11;
+  const dv = (mod===0 || mod===1) ? 0 : (11 - mod);
+  return String(dv);
+}
+
+// ========================= Construção do XML =========================
+function buildXML(){
+  msg.textContent = '';
+  if(!validateForm()) return;
+
+  const uf = document.getElementById('uf').value;
+  const cUF = UF2cUF[uf] || 35;
+  const natOp = document.getElementById('natOp').value || 'Venda de mercadorias';
+  const serie = document.getElementById('serie').value || '1';
+  const nNF = document.getElementById('nNF').value || '1';
+  const tpNF = document.getElementById('tpNF').value || '1';
+  const pICMS_pad = toNum(document.getElementById('pICMS').value||'18');
+  const pFCP_pad = toNum(document.getElementById('pFCP').value||'0');
+  const dhEmi = document.getElementById('dhEmi').value ? new Date(document.getElementById('dhEmi').value) : new Date();
+  const tz = '-03:00'; // simplificado
+  const dhEmiStr = dhEmi.toISOString().slice(0,19) + tz;
+
+  // Emitente
+  const emit = {
+    CNPJ: onlyDigits(document.getElementById('emit_CNPJ').value),
+    xNome: document.getElementById('emit_xNome').value,
+    xFant: document.getElementById('emit_xFant').value,
+    IE: document.getElementById('emit_IE').value,
+    xLgr: document.getElementById('emit_xLgr').value,
+    nro: document.getElementById('emit_nro').value,
+    xBairro: document.getElementById('emit_xBairro').value,
+    xMun: document.getElementById('emit_xMun').value,
+    UF: document.getElementById('emit_UF').value,
+    CEP: onlyDigits(document.getElementById('emit_CEP').value)
+  };
+  // Destinatário
+  const dest = {
+    doc: onlyDigits(document.getElementById('dest_doc').value),
+    xNome: document.getElementById('dest_xNome').value,
+    IE: document.getElementById('dest_IE').value,
+    xLgr: document.getElementById('dest_xLgr').value,
+    nro: document.getElementById('dest_nro').value,
+    xBairro: document.getElementById('dest_xBairro').value,
+    xMun: document.getElementById('dest_xMun').value,
+    UF: document.getElementById('dest_UF').value,
+    CEP: onlyDigits(document.getElementById('dest_CEP').value)
+  };
+
+  // Totais acessórias
+  const vFrete = toNum(document.getElementById('vFrete').value);
+  const vSeg   = toNum(document.getElementById('vSeg').value);
+  const vDesc  = toNum(document.getElementById('vDesc').value);
+  const vOutro = toNum(document.getElementById('vOutro').value);
+
+  // Itens
+  const dets = [];
+  let vProdSum=0, vICMSSum=0, vIPISum=0, vPISSum=0, vCOFINSSum=0, vFCPSum=0;
+  Array.from(tbody.children).forEach((tr,idx)=>{
+    const cProd  = tr.children[1].querySelector('input').value;
+    const xProd  = tr.children[2].querySelector('input').value;
+    const NCM    = tr.children[3].querySelector('input').value;
+    const CFOP   = tr.children[4].querySelector('input').value || document.getElementById('cfopPadrao').value;
+    const uCom   = tr.children[5].querySelector('input').value;
+    const qCom   = toNum(tr.children[6].querySelector('input').value);
+    const vUnCom = toNum(tr.children[7].querySelector('input').value);
+    const pIPI   = toNum(tr.children[8].querySelector('input').value);
+    const pPIS   = toNum(tr.children[9].querySelector('input').value);
+    const pCOFINS= toNum(tr.children[10].querySelector('input').value);
+    const pFCP   = toNum(tr.children[11].querySelector('input').value || pFCP_pad);
+    const vProd  = qCom * vUnCom;
+
+    const vBC    = vProd;
+    const vICMS  = vBC * (pICMS_pad/100);
+    const vFCP   = vBC * (pFCP/100);
+    const vIPI   = vProd * (pIPI/100);
+    const vPIS   = vProd * (pPIS/100);
+    const vCOFINS= vProd * (pCOFINS/100);
+
+    vProdSum += vProd; vICMSSum += vICMS; vIPISum += vIPI; vPISSum += vPIS; vCOFINSSum += vCOFINS; vFCPSum += vFCP;
+
+    dets.push({
+      nItem: idx+1, cProd, xProd, NCM, CFOP, uCom,
+      qCom: toDec4(qCom), vUnCom: toDec4(vUnCom), vProd: toDec2(vProd),
+      vBC: toDec2(vBC), vICMS: toDec2(vICMS), pICMS: toDec2(pICMS_pad),
+      pIPI: toDec2(pIPI), vIPI: toDec2(vIPI),
+      pPIS: toDec2(pPIS), vPIS: toDec2(vPIS),
+      pCOFINS: toDec2(pCOFINS), vCOFINS: toDec2(vCOFINS),
+      pFCP: toDec2(pFCP), vFCP: toDec2(vFCP)
+    });
+  });
+
+  const vBC   = toDec2(vProdSum);
+  const vICMS = toDec2(vICMSSum);
+  const vIPI  = toDec2(vIPISum);
+  const vPIS  = toDec2(vPISSum);
+  const vCOFINS = toDec2(vCOFINSSum);
+  const vFCP  = toDec2(vFCPSum);
+  const vProd = toDec2(vProdSum);
+
+  // vNF = vProd + frete + seguro + outros - desconto + IPI
+  const vNF  = toDec2(vProdSum + vFrete + vSeg + vOutro - vDesc + vIPISum);
+
+  // Chave de acesso (44): cUF + AAMM + CNPJ + 55 + serie(3) + nNF(9) + tpEmis(1=1) + cNF(8) + DV
+  const AAMM = String(dhEmi.getUTCFullYear()).slice(2) + pad(dhEmi.getUTCMonth()+1,2);
+  const mod = '55';
+  const serieP3 = pad(onlyDigits(serie).slice(0,3)||'1',3);
+  const nNFP9 = pad(onlyDigits(nNF).slice(0,9)||'1',9);
+  const tpEmis = '1';
+  const cNF = pad(Math.floor(Math.random()*1e8),8);
+  const base43 = String(cUF).padStart(2,'0') + AAMM + pad(emit.CNPJ,14) + mod + serieP3 + nNFP9 + tpEmis + cNF;
+  const cDV = dvMod11Chave(base43);
+  const chave = base43 + cDV;
+
+  const infCpl = document.getElementById('infCpl').value;
+
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<procNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe Id="NFe${chave}" versao="4.00">
+      <ide>
+        <cUF>${cUF}</cUF>
+        <natOp>${esc(natOp)}</natOp>
+        <mod>55</mod>
+        <serie>${esc(serie)}</serie>
+        <nNF>${esc(nNF)}</nNF>
+        <dhEmi>${dhEmiStr}</dhEmi>
+        <tpNF>${esc(tpNF)}</tpNF>
+        <cNF>${cNF}</cNF>
+        <cDV>${cDV}</cDV>
+        <verProc>APP-DIDATICO 3.0</verProc>
+      </ide>
+      <emit>
+        <CNPJ>${emit.CNPJ}</CNPJ>
+        <xNome>${esc(emit.xNome)}</xNome>
+        <xFant>${esc(emit.xFant)}</xFant>
+        <enderEmit>
+          <xLgr>${esc(emit.xLgr)}</xLgr>
+          <nro>${esc(emit.nro)}</nro>
+          <xBairro>${esc(emit.xBairro)}</xBairro>
+          <xMun>${esc(emit.xMun)}</xMun>
+          <UF>${esc(emit.UF)}</UF>
+          <CEP>${emit.CEP}</CEP>
+        </enderEmit>
+        <IE>${esc(emit.IE)}</IE>
+        <CRT>3</CRT>
+      </emit>
+      <dest>
+        ${dest.doc.length===11?`<CPF>${dest.doc}</CPF>`:`<CNPJ>${dest.doc}</CNPJ>`}
+        <xNome>${esc(dest.xNome)}</xNome>
+        <enderDest>
+          <xLgr>${esc(dest.xLgr)}</xLgr>
+          <nro>${esc(dest.nro)}</nro>
+          <xBairro>${esc(dest.xBairro)}</xBairro>
+          <xMun>${esc(dest.xMun)}</xMun>
+          <UF>${esc(dest.UF)}</UF>
+          <CEP>${dest.CEP}</CEP>
+        </enderDest>
+        <indIEDest>1</indIEDest>
+        <IE>${esc(dest.IE)}</IE>
+      </dest>
+`;
+
+  dets.forEach(d=>{
+    xml += `      <det nItem="${d.nItem}">
+        <prod>
+          <cProd>${esc(d.cProd)}</cProd>
+          <xProd>${esc(d.xProd)}</xProd>
+          <NCM>${esc(d.NCM)}</NCM>
+          <CFOP>${esc(d.CFOP)}</CFOP>
+          <uCom>${esc(d.uCom)}</uCom>
+          <qCom>${d.qCom}</qCom>
+          <vUnCom>${d.vUnCom}</vUnCom>
+          <vProd>${d.vProd}</vProd>
+        </prod>
+        <imposto>
+          <ICMS>
+            <ICMS00>
+              <orig>0</orig>
+              <CST>00</CST>
+              <modBC>3</modBC>
+              <vBC>${d.vBC}</vBC>
+              <pICMS>${d.pICMS}</pICMS>
+              <vICMS>${d.vICMS}</vICMS>
+              ${ Number(d.pFCP)>0 ? `<pFCP>${d.pFCP}</pFCP><vFCP>${d.vFCP}</vFCP>` : ``}
+            </ICMS00>
+          </ICMS>
+          ${ Number(d.pIPI)>=0 ? `<IPI><IPITrib><CST>50</CST><vBC>${d.vProd}</vBC><pIPI>${d.pIPI}</pIPI><vIPI>${d.vIPI}</vIPI></IPITrib></IPI>` : ``}
+          <PIS><PISAliq><CST>01</CST><vBC>${d.vProd}</vBC><pPIS>${d.pPIS}</pPIS><vPIS>${d.vPIS}</vPIS></PISAliq></PIS>
+          <COFINS><COFINSAliq><CST>01</CST><vBC>${d.vProd}</vBC><pCOFINS>${d.pCOFINS}</pCOFINS><vCOFINS>${d.vCOFINS}</vCOFINS></COFINSAliq></COFINS>
+        </imposto>
+      </det>
+`;
+  });
+
+  xml += `      <total>
+        <ICMSTot>
+          <vBC>${vBC}</vBC>
+          <vICMS>${vICMS}</vICMS>
+          <vFCP>${vFCP}</vFCP>
+          <vBCST>0.00</vBCST>
+          <vST>0.00</vST>
+          <vProd>${vProd}</vProd>
+          <vFrete>${toDec2(vFrete)}</vFrete>
+          <vSeg>${toDec2(vSeg)}</vSeg>
+          <vDesc>${toDec2(vDesc)}</vDesc>
+          <vII>0.00</vII>
+          <vIPI>${vIPI}</vIPI>
+          <vPIS>${vPIS}</vPIS>
+          <vCOFINS>${vCOFINS}</vCOFINS>
+          <vOutro>${toDec2(vOutro)}</vOutro>
+          <vNF>${vNF}</vNF>
+        </ICMSTot>
+      </total>
+      <transp>
+        <modFrete>${document.getElementById('modFrete').value}</modFrete>
+      </transp>
+      <infAdic>
+        <infCpl>${esc(infCpl)}</infCpl>
+      </infAdic>
+    </infNFe>
+  </NFe>
+  <protNFe versao="4.00">
+    <infProt>
+      <tpAmb>2</tpAmb>
+      <verAplic>APP_DIDATICO</verAplic>
+      <chNFe>${chave}</chNFe>
+      <dhRecbto>${dhEmiStr}</dhRecbto>
+      <nProt>135250000000000</nProt>
+      <cStat>100</cStat>
+      <xMotivo>Autorizado o uso da NF-e (exemplo fictício)</xMotivo>
+    </infProt>
+  </protNFe>
+</procNFe>`;
+
+  // salva último XML no localStorage
+  try{ localStorage.setItem(LS_XML_KEY, xml); }catch(_){}
+  return { xml, chave };
+}
+
+// ========================= Download / Visualizar / Copiar =========================
+document.getElementById('btnGerar').addEventListener('click', ()=>{
+  const out = buildXML(); if(!out) return;
+  const blob = new Blob([out.xml], {type:'application/xml'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const dt = new Date();
+  const fn = `nfe_${dt.toISOString().slice(0,19).replace(/[:T]/g,'')}.xml`;
+  a.href=url; a.download=fn; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  msg.innerHTML = `XML gerado: <b>${fn}</b> — Chave: <code>${out.chave}</code>`;
+});
+
+document.getElementById('btnGerarVisualizar').addEventListener('click', ()=>{
+  const out = buildXML(); if(!out) return;
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(out.xml, 'application/xml');
+  renderDANFE(xml);
+  setTab('viewer');
+  msg.innerHTML = `<span class="success">XML gerado e enviado para visualização.</span>`;
+});
+
+document.getElementById('btnCopiarXML').addEventListener('click', async ()=>{
+  const out = buildXML(); if(!out) return;
+  try{ await navigator.clipboard.writeText(out.xml); msg.innerHTML = '<span class="success">XML copiado para a área de transferência.</span>'; }
+  catch(e){ msg.innerHTML = '<span class="danger">Não foi possível copiar. Permita acesso à área de transferência.</span>'; }
+});
+
+// ========================= Draft (localStorage) =========================
+function getFormData(){
+  const ids = [
+    'uf','natOp','serie','nNF','dhEmi','tpNF','pICMS','pFCP','cfopPadrao','vFrete','vSeg','vDesc','vOutro','modFrete',
+    'emit_xNome','emit_xFant','emit_CNPJ','emit_IE','emit_xLgr','emit_nro','emit_xBairro','emit_xMun','emit_UF','emit_CEP',
+    'dest_xNome','dest_doc','dest_IE','dest_xLgr','dest_nro','dest_xBairro','dest_xMun','dest_UF','dest_CEP','infCpl'
+  ];
+  const data = {};
+  ids.forEach(id=> data[id] = document.getElementById(id).value);
+  // itens
+  data.itens = Array.from(tbody.children).map(tr => ({
+    cProd: tr.children[1].querySelector('input').value,
+    xProd: tr.children[2].querySelector('input').value,
+    NCM: tr.children[3].querySelector('input').value,
+    CFOP: tr.children[4].querySelector('input').value,
+    uCom: tr.children[5].querySelector('input').value,
+    qCom: tr.children[6].querySelector('input').value,
+    vUnCom: tr.children[7].querySelector('input').value,
+    pIPI: tr.children[8].querySelector('input').value,
+    pPIS: tr.children[9].querySelector('input').value,
+    pCOFINS: tr.children[10].querySelector('input').value,
+    pFCP: tr.children[11].querySelector('input').value
+  }));
+  return data;
+}
+function fillForm(data){
+  if(!data) return;
+  Object.entries(data).forEach(([k,v])=>{
+    if(k==='itens') return;
+    const el = document.getElementById(k);
+    if(el) el.value = v;
+  });
+  tbody.innerHTML='';
+  (data.itens||[]).forEach(it=> addItemRow(it));
+  if(!data.itens || data.itens.length===0) recalc();
+  attachMasks();
+}
+function saveDraft(){
+  try{
+    const data = getFormData();
+    localStorage.setItem(LS_FORM_KEY, JSON.stringify(data));
+    msg.innerHTML = '<span class="success">Rascunho salvo.</span>';
+  }catch(e){
+    msg.innerHTML = '<span class="danger">Falha ao salvar rascunho.</span>';
+  }
+}
+function loadDraft(){
+  try{
+    const raw = localStorage.getItem(LS_FORM_KEY);
+    if(!raw){ msg.innerHTML = '<span class="danger">Não há rascunho salvo.</span>'; return; }
+    fillForm(JSON.parse(raw));
+    msg.innerHTML = '<span class="success">Rascunho carregado.</span>';
+  }catch(e){
+    msg.innerHTML = '<span class="danger">Falha ao carregar rascunho.</span>';
+  }
+}
+function clearDraft(){
+  try{ localStorage.removeItem(LS_FORM_KEY); msg.innerHTML = '<span class="success">Rascunho limpo.</span>'; }catch(_){}
+}
+let saveTimer = null;
+function scheduleAutoSave(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveDraft, 600);
+}
+document.getElementById('btnSalvar').addEventListener('click', saveDraft);
+document.getElementById('btnCarregar').addEventListener('click', loadDraft);
+document.getElementById('btnLimpar').addEventListener('click', clearDraft);
+document.getElementById('btnReabrirXML').addEventListener('click', ()=>{
+  const raw = localStorage.getItem(LS_XML_KEY);
+  if(!raw){ msg.innerHTML = '<span class="danger">Nenhum XML encontrado.</span>'; return; }
+  const xml = new DOMParser().parseFromString(raw, 'application/xml');
+  renderDANFE(xml);
+  setTab('viewer');
+  msg.innerHTML = '<span class="success">Último XML reaberto.</span>';
+});
+
+// Auto-save ao digitar
+document.querySelectorAll('#editor input, #editor select, #editor textarea').forEach(el=>{
+  el.addEventListener('input', scheduleAutoSave);
+});
+
+// ========================= Tabs =========================
+document.querySelectorAll('.tab').forEach(t=> t.addEventListener('click', ()=> setTab(t.dataset.tab)));
+function setTab(name){
+  document.querySelectorAll('.tab').forEach(el=> el.classList.toggle('active', el.dataset.tab===name));
+  document.getElementById('editor').style.display = (name==='editor')?'block':'none';
+  document.getElementById('viewer').style.display = (name==='viewer')?'block':'none';
+}
+
+// ========================= Viewer: XML & Logo =========================
+document.getElementById('xmlFile').addEventListener('change', async (ev)=>{
+  const f = ev.target.files[0]; if(!f) return;
+  const text = await f.text();
+  const xml = new DOMParser().parseFromString(text, 'application/xml');
+  renderDANFE(xml);
+  setTab('viewer');
+});
+let logoDataURL = null;
+document.getElementById('logoFile').addEventListener('change', async (ev)=>{
+  const f = ev.target.files[0]; if(!f) return;
+  logoDataURL = await fileToDataURL(f);
+  const img = document.getElementById('emitLogo');
+  if(img){ img.src = logoDataURL; img.style.display='inline'; }
+});
+function fileToDataURL(file){
+  return new Promise((res,rej)=>{
+    const r = new FileReader();
+    r.onload = ()=> res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+// ========================= XML helpers (namespace-safe) =========================
+function firstByLocalName(root, name){
+  if (!root || typeof root.getElementsByTagName !== 'function') return null;
+  const all = root.getElementsByTagName('*');
+  for (let i = 0; i < all.length; i++) {
+    if (all[i].localName === name) return all[i];
+  }
+  return null;
+}
+function textByLocalName(root, name, fallback=""){
+  const el = firstByLocalName(root, name);
+  return el ? (el.textContent || '').trim() : fallback;
+}
+function chunk4(s){ return (s||'').replace(/\D/g,'').replace(/(.{4})/g,'$1 ').trim(); }
+function formatDateTime(dt){
+  if(!dt) return '';
+  const d = dt.replace('T',' ').replace('Z','');
+  const m = d.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if(!m) return dt;
+  const [_,y,mo,da,hh,mm] = m;
+  return hh ? `${da}/${mo}/${y} ${hh}:${mm}` : `${da}/${mo}/${y}`;
+}
+function money(n){ if(n==null||n==='') return ''; const v=Number(n); if(isNaN(v)) return n; return v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function qty(n){ if(n==null||n==='') return ''; const v=Number(n); if(isNaN(v)) return n; return v.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:4}); }
+function maskCNPJ(s){
+  if(!s) return '';
+  const d = s.replace(/\D/g,'');
+  if(d.length===14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5');
+  if(d.length===11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4');
+  return s;
+}
+
+// ========================= Code128C (SVG) =========================
+const CODE128_PATTERNS = ["212222","222122","222221","121223","121322","131222","122213","122312","132212","221213","221312","231212","112232","122132","122231","113222","123122","123221","223211","221132","221231","213212","223112","312131","311222","321122","321221","312212","322112","322211","212123","212321","232121","111323","131123","131321","112313","132113","132311","211313","231113","231311","112133","112331","132131","113123","113321","133121","313121","211331","231131","213113","213311","213131","311123","311321","331121","312113","312311","332111","314111","221411","431111","111224","111422","121124","121421","141122","141221","112214","112412","122114","122411","142112","142211","241211","221114","413111","241112","134111","111242","121142","121241","114212","124112","124211","411212","421112","421211","212141","214121","412121","111143","111341","131141","114113","114311","411113","411311","113141","114131","311141","411131","211412","211214","211232","2331112"];
+function drawCode128C(svg, digits, height=58){
+  const data = (digits||'').replace(/\D/g,'');
+  if(data.length % 2 !== 0 || data.length === 0){ while(svg.firstChild) svg.removeChild(svg.firstChild); return; }
+  const codes = []; let checksum = 105; codes.push(105);
+  for(let i=0;i<data.length;i+=2){ const pair=parseInt(data.substr(i,2),10); codes.push(pair); checksum += pair * ((i/2)+1); }
+  checksum = checksum % 103; codes.push(checksum); codes.push(106);
+  const seq = codes.map(c=>CODE128_PATTERNS[c]).join('');
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+  svg.setAttribute('viewBox', `0 0 ${seq.split('').reduce((a,b)=>a+parseInt(b,10),0)} ${height}`);
+  svg.setAttribute('preserveAspectRatio','none');
+  let x=0, isBar=true;
+  for(const w of seq){ const ww=parseInt(w,10); if(isBar){ const r=document.createElementNS('http://www.w3.org/2000/svg','rect'); r.setAttribute('x',x); r.setAttribute('y',0); r.setAttribute('width',ww); r.setAttribute('height',height); r.setAttribute('fill','#000'); svg.appendChild(r);} x+=ww; isBar=!isBar; }
+}
+
+// ========================= DANFE Renderer (com canhoto e logo) =========================
+function renderDANFE(xmlDoc){
+  const nfe = firstByLocalName(xmlDoc, 'NFe') || xmlDoc;
+  const infNFe = firstByLocalName(nfe, 'infNFe') || nfe;
+  const ide = firstByLocalName(infNFe, 'ide') || nfe;
+  const emit = firstByLocalName(infNFe, 'emit') || nfe;
+  const dest = firstByLocalName(infNFe, 'dest') || nfe;
+  const total = firstByLocalName(infNFe, 'total') || nfe;
+  const icmsTot = firstByLocalName(total, 'ICMSTot') || nfe;
+  const transp = firstByLocalName(infNFe, 'transp') || nfe;
+  const prot = firstByLocalName(xmlDoc, 'protNFe') || null;
+  const infProt = prot ? firstByLocalName(prot,'infProt') : null;
+
+  const xFant = textByLocalName(emit,'xFant') || textByLocalName(emit,'xNome');
+  const emitRazao = textByLocalName(emit,'xNome');
+  const emitCNPJ = textByLocalName(emit,'CNPJ');
+  const emitIE = textByLocalName(emit,'IE');
+  const eEnd = firstByLocalName(emit,'enderEmit') || emit;
+  const emitEnd = [
+    textByLocalName(eEnd,'xLgr'),'Nº '+textByLocalName(eEnd,'nro'),
+    textByLocalName(eEnd,'xBairro'),
+    textByLocalName(eEnd,'xMun')+' - '+textByLocalName(eEnd,'UF'),
+    'CEP '+textByLocalName(eEnd,'CEP')
+  ].filter(Boolean).join(' • ');
+
+  const destNome = textByLocalName(dest,'xNome');
+  const destDoc = textByLocalName(dest,'CNPJ') || textByLocalName(dest,'CPF');
+  const destIE = textByLocalName(dest,'IE');
+  const dEnd = firstByLocalName(dest,'enderDest') || dest;
+  const destEnd = [
+    textByLocalName(dEnd,'xLgr'),'Nº '+textByLocalName(dEnd,'nro'),
+    textByLocalName(dEnd,'xBairro'),
+    textByLocalName(dEnd,'xMun')+' - '+textByLocalName(dEnd,'UF'),
+    'CEP '+textByLocalName(dEnd,'CEP')
+  ].filter(Boolean).join(' • ');
+
+  const natOp = textByLocalName(ide,'natOp');
+  const serie = textByLocalName(ide,'serie');
+  const nNF = textByLocalName(ide,'nNF');
+  const dhEmi = formatDateTime(textByLocalName(ide,'dhEmi') || textByLocalName(ide,'dEmi'));
+  const tpNF = textByLocalName(ide,'tpNF') === '1' ? 'Saida' : 'Entrada';
+  const protAut = textByLocalName(infProt||{},'nProt');
+  const dhRecbto = formatDateTime(textByLocalName(infProt||{},'dhRecbto'));
+  const verProc = textByLocalName(infNFe,'verProc');
+
+  // infCpl seguro
+  const infAdicNode = firstByLocalName(infNFe, 'infAdic');
+  const infCplSafe = textByLocalName(infAdicNode, 'infCpl', '');
+
+  let chave = textByLocalName(infProt||{},'chNFe');
+  if(!chave){
+    const idAttr = infNFe.getAttribute('Id')||'';
+    const m = idAttr.match(/NFe(\d{44})/i);
+    if(m) chave = m[1];
+  }
+
+  // itens
+  const itens = [];
+  const dets = Array.from(infNFe.getElementsByTagName('*')).filter(el=>el.localName==='det');
+  dets.forEach((det, idx)=>{
+    const prod = firstByLocalName(det,'prod') || det;
+    itens.push({
+      nItem: det.getAttribute('nItem') || (idx+1),
+      cProd: textByLocalName(prod,'cProd'),
+      xProd: textByLocalName(prod,'xProd'),
+      NCM: textByLocalName(prod,'NCM'),
+      CFOP: textByLocalName(prod,'CFOP'),
+      uCom: textByLocalName(prod,'uCom'),
+      qCom: textByLocalName(prod,'qCom'),
+      vUnCom: textByLocalName(prod,'vUnCom'),
+      vProd: textByLocalName(prod,'vProd')
+    });
+  });
+
+  const tot = {
+    vBC: textByLocalName(icmsTot,'vBC'),
+    vICMS: textByLocalName(icmsTot,'vICMS'),
+    vFCP: textByLocalName(icmsTot,'vFCP'),
+    vBCST: textByLocalName(icmsTot,'vBCST'),
+    vST: textByLocalName(icmsTot,'vST'),
+    vProd: textByLocalName(icmsTot,'vProd'),
+    vFrete: textByLocalName(icmsTot,'vFrete'),
+    vSeg: textByLocalName(icmsTot,'vSeg'),
+    vDesc: textByLocalName(icmsTot,'vDesc'),
+    vII: textByLocalName(icmsTot,'vII'),
+    vIPI: textByLocalName(icmsTot,'vIPI'),
+    vPIS: textByLocalName(icmsTot,'vPIS'),
+    vCOFINS: textByLocalName(icmsTot,'vCOFINS'),
+    vOutro: textByLocalName(icmsTot,'vOutro'),
+    vNF: textByLocalName(icmsTot,'vNF')
+  };
+
+  const page = document.getElementById('danfePage');
+  page.innerHTML = `
+  <div class="danfe">
+    <div class="canhoto">
+      <h4>Canhoto — Recebimento</h4>
+      <div style="display:flex; gap:12px; align-items:center; font-size:11px">
+        <div><b>NF-e:</b> ${esc(nNF||'')} &nbsp; <b>Série:</b> ${esc(serie||'')} &nbsp; <b>Emissão:</b> ${esc(dhEmi||'')}</div>
+      </div>
+      <div style="margin-top:6px">
+        <div style="display:flex; gap:10px; align-items:center">
+          <div style="flex:1"><b>Recebi(os) produtos/serviços constantes na NF-e acima.</b></div>
+          <div style="flex:1">Data: ____/____/______</div>
+          <div style="flex:1">Assinatura / carimbo: _______________________________</div>
+        </div>
+      </div>
+    </div>
+
+    <section class="hdr">
+      <div class="emit">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px">
+          <img id="emitLogo" class="logo" style="${window.logoDataURL?'':'display:none'}" src="${window.logoDataURL||''}" alt="Logo">
+          <div class="fant">${esc(xFant||'Emitente')}</div>
+        </div>
+        <div class="razao">${esc(emitRazao||'Razão Social do Emitente')}</div>
+        <div class="end">${esc(emitEnd||'Endereço')}</div>
+        <div class="doc"><b>CNPJ:</b> ${esc(maskCNPJ(emitCNPJ)||'')} &nbsp; <b>IE:</b> ${esc(emitIE||'')}</div>
+      </div>
+      <div class="danfeTitle">
+        <div style="font-size:18px; font-weight:800; letter-spacing:.03em">DANFE</div>
+        <div class="muted" style="font-size:11px">Documento Auxiliar da Nota Fiscal Eletrônica</div>
+      </div>
+      <div class="nfeBox">
+        <div><span class="muted">NF-e:</span> <b>${esc(nNF||'')}</b></div>
+        <div><span class="muted">Série:</span> <b>${esc(serie||'')}</b></div>
+        <div><span class="muted">Emissão:</span> <b>${esc(dhEmi||'')}</b></div>
+        <div><span class="muted">Tipo:</span> <b>${esc(tpNF)}</b></div>
+        ${protAut?`<div><span class="muted">Protocolo:</span> <b>${esc(protAut||'')}</b></div>`:''}
+        ${dhRecbto?`<div><span class="muted">Autorizado em:</span> <b>${esc(dhRecbto||'')}</b></div>`:''}
+        ${verProc?`<div><span class="muted">Versão Proc.:</span> <b>${esc(verProc||'')}</b></div>`:''}
+      </div>
+      <div class="chaveBox">
+        <div class="muted">Consulta de autenticidade no portal nacional da NF-e</div>
+        <div style="border:1px solid #111; padding:6px; margin-top:6px">
+          <svg id="barcode" class="barcode" role="img"></svg>
+        </div>
+        <div class="digits">${esc(chunk4(chave||''))}</div>
+      </div>
+    </section>
+
+    <section class="secHdr">
+      <div class="title">Destinatário / Remetente</div>
+      <div class="rowg">
+        <div class="cell" style="flex:2 1 40%"><div class="f"><span class="lbl">Nome / Razão social</span><div class="val">${esc(destNome||'')}</div></div></div>
+        <div class="cell" style="flex:1 1 20%"><div class="f"><span class="lbl">CNPJ/CPF</span><div class="val">${esc(maskCNPJ(destDoc)||'')}</div></div></div>
+        <div class="cell" style="flex:1 1 20%"><div class="f"><span class="lbl">IE</span><div class="val">${esc(destIE||'')}</div></div></div>
+      </div>
+      <div class="rowg">
+        <div class="cell" style="flex:1 1 100%"><div class="f"><span class="lbl">Endereço</span><div class="val">${esc(destEnd||'')}</div></div></div>
+      </div>
+      <div class="rowg">
+        <div class="cell" style="flex:1 1 100%"><div class="f"><span class="lbl">Natureza da operação</span><div class="val">${esc(natOp||'')}</div></div></div>
+      </div>
+    </section>
+
+    <section class="secHdr">
+      <div class="title">Dados dos Produtos / Serviços</div>
+      <div class="rowg" style="padding:0">
+        <table class="prod">
+          <thead><tr>
+            <th>Item</th><th>Código</th><th>Descrição</th><th>NCM</th><th>CFOP</th><th>UN</th>
+            <th>Qtde</th><th>V. Unit.</th><th>V. Total</th>
+          </tr></thead>
+          <tbody id="tbodyItens"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="secHdr">
+      <div class="title">Cálculo do Imposto</div>
+      <div class="rowg">
+        <div class="cell"><div class="f"><span class="lbl">Base de calc. do ICMS</span><div class="val">R$ ${money(tot.vBC)}</div></div></div>
+        <div class="cell"><div class="f"><span class="lbl">Valor do ICMS</span><div class="val">R$ ${money(tot.vICMS)}</div></div></div>
+        <div class="cell"><div class="f"><span class="lbl">FCP</span><div class="val">R$ ${money(tot.vFCP)}</div></div></div>
+        <div class="cell"><div class="f"><span class="lbl">Valor dos produtos</span><div class="val">R$ ${money(tot.vProd)}</div></div></div>
+        <div class="cell"><div class="f"><span class="lbl">Frete</span><div class="val">R$ ${money(tot.vFrete)}</div></div></div>
+        <div class="cell"><div class="f"><span class="lbl">Seguro</span><div class="val">R$ ${money(tot.vSeg)}</div></div></div>
+        <div class="cell"><div class="f"><span class="lbl">Desconto</span><div class="val">R$ ${money(tot.vDesc)}</div></div></div>
+        <div class="cell"><div class="f"><span class="lbl">Outras despesas</span><div class="val">R$ ${money(tot.vOutro)}</div></div></div>
+        <div class="cell"><div class="f"><span class="lbl">IPI</span><div class="val">R$ ${money(tot.vIPI)}</div></div></div>
+        <div class="cell"><div class="f"><span class="lbl">PIS</span><div class="val">R$ ${money(tot.vPIS)}</div></div></div>
+        <div class="cell"><div class="f"><span class="lbl">COFINS</span><div class="val">R$ ${money(tot.vCOFINS)}</div></div></div>
+        <div class="cell" style="flex:2 1 40%"><div class="f"><span class="lbl">Valor total da NF-e</span><div class="val" style="font-size:14px">R$ ${money(tot.vNF)}</div></div></div>
+      </div>
+    </section>
+
+    <div class="secHdr">
+      <div class="title">Informações complementares</div>
+      <div style="padding:6px">${esc(infCplSafe)}</div>
+    </div>
+  </div>
+  `;
+
+  // produtos
+  const tb = page.querySelector('#tbodyItens');
+  itens.forEach(it=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="num">${esc(it.nItem||'')}</td>
+      <td>${esc(it.cProd||'')}</td>
+      <td>${esc(it.xProd||'')}</td>
+      <td>${esc(it.NCM||'')}</td>
+      <td>${esc(it.CFOP||'')}</td>
+      <td>${esc(it.uCom||'')}</td>
+      <td class="num">${esc(qty(it.qCom)||'')}</td>
+      <td class="num">${esc(money(it.vUnCom)||'')}</td>
+      <td class="num">${esc(money(it.vProd)||'')}</td>
+    `;
+    tb.appendChild(tr);
+  });
+
+  // barcode
+  try{
+    const svg = document.getElementById('barcode');
+    if(chave && svg){ drawCode128C(svg, chave.replace(/\D/g,''), 58); }
+  }catch(e){ console.error(e); }
+}
+
+// ========================= Inicialização =========================
+attachMasks();
+document.querySelectorAll('#editor input, #editor select, #editor textarea').forEach(el=>{
+  el.addEventListener('blur', ()=> validateForm());
+});
+</script>
+</body>
+</html>
